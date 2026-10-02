@@ -53,7 +53,12 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build release APK
-        run: ./gradlew --no-daemon assembleRelease
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
+        run: |
+          # Android versionName normally omits the Git tag's leading "v".
+          VERSION_NAME="${RELEASE_TAG#v}"
+          ./gradlew --no-daemon -PversionName="$VERSION_NAME" assembleRelease
 
       - name: Verify APK exists
         run: test -s app/build/outputs/apk/release/dirtyfrag.apk

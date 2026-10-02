@@ -2,6 +2,8 @@ plugins {
     id("com.android.application")
 }
 
+val appVersionName = providers.gradleProperty("versionName").orElse("3.0-experimental")
+
 android {
     namespace = "df.root"
     compileSdk = 36
@@ -12,7 +14,7 @@ android {
         minSdk = 32
         targetSdk = 36
         versionCode = 6
-        versionName = "3.0-experimental"
+        versionName = appVersionName.get()
 
         ndk {
             abiFilters += listOf("arm64-v8a")
