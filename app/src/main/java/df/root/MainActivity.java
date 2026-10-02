@@ -74,10 +74,13 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         updateDeviceProfile();
         updateKsudMode();
         updateKoMode();
+        updateVendorTargetsUi();
         binding.btnSelectKsud.setOnClickListener(v -> selectPayload(REQUEST_SELECT_KSUD));
         binding.btnUseManagerKsud.setOnClickListener(v -> useManagerKsud());
         binding.btnSelectKo.setOnClickListener(v -> selectPayload(REQUEST_SELECT_KO));
         binding.btnUseBundledKo.setOnClickListener(v -> useBundledKo());
+        binding.btnSaveVendorTargets.setOnClickListener(v -> saveVendorTargets());
+        binding.btnResetVendorTargets.setOnClickListener(v -> resetVendorTargets());
         binding.koSelection.setOnItemClickListener((parent, view, position, id) ->
                 onKoSelection(position));
         binding.githubLink.setOnClickListener(v -> openGithub());
@@ -343,6 +346,39 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         binding.ksudMode.setText(customKsud.isFile()
                 ? "Loader: custom ksud (" + label + ")"
                 : "Loader: auto (KernelSU Manager → ReSukiSU Manager → system ksud)");
+    }
+
+    private void updateVendorTargetsUi() {
+        String targets = ExploitRunner.getVendorTargets(this);
+        binding.vendorTargetsInput.setText(targets);
+        int count = targets.isEmpty() ? 0 : targets.split("\\R").length;
+        binding.vendorTargetsStatus.setText(count + " target(s) configured; tried from top to bottom.");
+    }
+
+    private void saveVendorTargets() {
+        String raw = binding.vendorTargetsInput.getText() == null
+                ? "" : binding.vendorTargetsInput.getText().toString();
+        String error = ExploitRunner.validateVendorTargets(raw);
+        if (error != null) {
+            binding.vendorTargetsLayout.setError(error);
+            return;
+        }
+        String normalized = ExploitRunner.normalizeVendorTargets(raw);
+        getSharedPreferences("dfroot", MODE_PRIVATE).edit()
+                .putString(ExploitRunner.PREF_VENDOR_TARGETS, normalized).apply();
+        binding.vendorTargetsLayout.setError(null);
+        updateVendorTargetsUi();
+        report("vendor target profile saved; it will be used on the next run\n");
+        Toast.makeText(this, "Vendor target profile saved", Toast.LENGTH_SHORT).show();
+    }
+
+    private void resetVendorTargets() {
+        getSharedPreferences("dfroot", MODE_PRIVATE).edit()
+                .remove(ExploitRunner.PREF_VENDOR_TARGETS).apply();
+        binding.vendorTargetsLayout.setError(null);
+        updateVendorTargetsUi();
+        report("vendor target profile reset to defaults\n");
+        Toast.makeText(this, "Default vendor targets restored", Toast.LENGTH_SHORT).show();
     }
 
     private void updateKoMode() {

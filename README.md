@@ -41,7 +41,43 @@ the system `ksud` path.
    compatible custom loader.
 4. Tap **Launch root** and review the run log.
 
-## If a device is not supported
+For a device whose vendor library layout differs, open **Settings → Advanced
+patch #2 targets** and enter one existing `/vendor/` or `/system/vendor/` library path per line. The
+app tries the saved paths in order during patch #2. Restore the defaults when
+finished testing; changing this list does not change patch #1, build a kernel
+module, or prove compatibility.
+
+### Finding a different patch #2 library
+
+The target is only a file carrier for the helper module. Its name can differ
+between vendors and Android releases. You can try the following using an ADB shell:
+
+```bash
+adb shell 'for d in /vendor/lib64 /vendor/lib /system/vendor/lib64 /system/vendor/lib; do
+  [ -d "$d" ] && find "$d" -maxdepth 1 -type f -name "*.so" -size +16k 2>/dev/null
+done'
+```
+
+For a candidate, inspect its size and SELinux label:
+
+```bash
+adb shell 'ls -lZ /vendor/lib64/example.so; stat -c "%s %n" /vendor/lib64/example.so'
+```
+
+Choose a regular library large enough for the selected `.ko`, normally with a
+`vendor_file`-type label. Avoid `libc`, the linker, and other critical runtime
+libraries. Enter the path under **Settings → Advanced patch #2 targets**, one
+path per line. A shell may still receive `permission denied`; in that case the
+app cannot prove the candidate before rooting, so use the run log and submit
+the failing path and log for a device profile.
+
+### Patch #1 portability
+
+Patch #1 is a separate stage. It injects `splicehelper` into
+`/apex/com.android.runtime/bin/crash_dump64` and depends on that file's ABI,
+page-cache behavior, and SELinux transition. Replacing the filename alone is
+not enough. A different firmware needs a tested patch profile or a new
+backend; changing the patch #2 target list cannot repair a patch #1 failure.
 
 Use the run log to locate the failing stage:
 

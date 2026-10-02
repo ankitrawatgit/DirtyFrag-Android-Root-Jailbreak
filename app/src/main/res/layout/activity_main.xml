@@ -344,6 +344,89 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardAdvancedTargets"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="12dp"
+                app:cardBackgroundColor="@color/card_background"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="1dp"
+                app:strokeColor="@color/card_outline"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="18dp">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="ADVANCED PATCH #2 TARGETS"
+                        android:textColor="@color/primary"
+                        android:textSize="12sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.08" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:lineSpacingExtra="2dp"
+                        android:text="Optional device-specific carrier files used for patch #2. Enter one existing absolute /vendor/ or /system/vendor/ path per line. The app tries them in order and keeps the defaults until you save."
+                        android:textColor="@color/secondary_ink"
+                        android:textSize="13sp" />
+
+                    <com.google.android.material.textfield.TextInputLayout
+                        android:id="@+id/vendorTargetsLayout"
+                        style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:hint="Vendor target paths">
+
+                        <df.root.VendorTargetsEditText
+                            android:id="@+id/vendorTargetsInput"
+                            android:layout_width="match_parent"
+                            android:layout_height="140dp"
+                            android:gravity="top|start"
+                            android:inputType="textMultiLine|textUri"
+                            android:minLines="3"
+                            android:maxLines="8"
+                            android:scrollbars="vertical"
+                            android:fadeScrollbars="false"
+                            android:overScrollMode="ifContentScrolls"
+                            android:nestedScrollingEnabled="true"
+                            android:textColor="@color/ink"
+                            android:fontFamily="monospace" />
+                    </com.google.android.material.textfield.TextInputLayout>
+
+                    <TextView
+                        android:id="@+id/vendorTargetsStatus"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp"
+                        android:textColor="@color/secondary_ink"
+                        android:textSize="12sp" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSaveVendorTargets"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="Save target profile" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnResetVendorTargets"
+                        style="@style/Widget.Material3.Button.OutlinedButton"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Restore default targets" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
             <TextView
                 android:id="@+id/githubLink"
                 android:layout_width="match_parent"
