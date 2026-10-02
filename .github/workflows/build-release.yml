@@ -1,0 +1,85 @@
+name: Build and publish APK release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag, for example v3.1.0"
+        required: true
+        default: "v3.0.0"
+        type: string
+      release_name:
+        description: "Release title (leave empty to use the tag)"
+        required: false
+        default: ""
+        type: string
+      prerelease:
+        description: "Mark this release as a prerelease"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install required Android SDK components
+        run: sdkmanager "platforms;android-36" "ndk;28.2.13676358" "cmake;3.22.1"
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      - name: Build release APK
+        run: ./gradlew --no-daemon assembleRelease
+
+      - name: Verify APK exists
+        run: test -s app/build/outputs/apk/release/dirtyfrag.apk
+
+      - name: Upload APK as workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dirtyfrag-apk-${{ inputs.release_tag }}
+          path: app/build/outputs/apk/release/dirtyfrag.apk
+          if-no-files-found: error
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          RELEASE_NAME: ${{ inputs.release_name }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$RELEASE_NAME" ]; then
+            RELEASE_NAME="DirtyFrag Android Root $RELEASE_TAG"
+          fi
+
+          APK="app/build/outputs/apk/release/dirtyfrag.apk"
+          if gh release view "$RELEASE_TAG" --repo "$REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$APK" --repo "$REPOSITORY" --clobber
+          else
+            CREATE_ARGS=("$RELEASE_TAG" "$APK" --repo "$REPOSITORY" --title "$RELEASE_NAME" --generate-notes)
+            if [ "$PRERELEASE" = "true" ]; then
+              CREATE_ARGS+=(--prerelease)
+            fi
+            gh release create "${CREATE_ARGS[@]}"
+          fi

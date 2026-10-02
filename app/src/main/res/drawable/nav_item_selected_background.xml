@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="100dp"
+    android:height="100dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+    <path
+        android:fillColor="@color/nav_active_indicator"
+        android:pathData="M24,8 H76 C86.5,8 94,18 94,30 V70 C94,82 86.5,92 76,92 H24 C13.5,92 6,82 6,70 V30 C6,18 13.5,8 24,8 Z" />
+</vector>

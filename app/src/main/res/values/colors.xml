@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="primary">#C95416</color>
+    <color name="on_primary">#FFFFFFFF</color>
+    <color name="secondary">#A9471B</color>
+    <color name="page_background">#FFF7EF</color>
+    <color name="card_background">#FFFFFE</color>
+    <color name="card_outline">#F0DDCE</color>
+    <color name="ink">#30241D</color>
+    <color name="secondary_ink">#78675B</color>
+    <color name="log_background">#FFF0E2</color>
+    <color name="log_ink">#493427</color>
+    <color name="nav_icon_default">#88766A</color>
+    <color name="nav_active_indicator">#FFFFE5D2</color>
+    <color name="nav_ripple">#33C95416</color>
+    <color name="nav_glass_top">#F5FFFFFF</color>
+    <color name="nav_glass_bottom">#E8FFF5EA</color>
+    <color name="nav_glass_outline">#D9FFFFFF</color>
+</resources>

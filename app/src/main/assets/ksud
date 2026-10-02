@@ -1,0 +1,34 @@
+#!/system/bin/sh
+
+CUSTOM=/data/user_de/0/df.root/ksud.custom
+if [ -x "$CUSTOM" ]; then
+    KSUD="$CUSTOM"
+else
+    # Prefer the installed KernelSU Manager's late-load binary.
+    KSUD=$(find /data/app -path '*/me.weishu.kernelsu*/lib/arm64/libksud.so' 2>/dev/null | head -1)
+
+    # ReSukiSU Manager is a compatible fallback when KernelSU Manager is absent.
+    if [ -z "$KSUD" ]; then
+        KSUD=$(find /data/app -path '*/com.resukisu.resukisu*/lib/arm64/libksud.so' 2>/dev/null | head -1)
+    fi
+
+    # Also accept a system-installed KernelSU loader.
+    if [ -z "$KSUD" ]; then
+        KSUD=/data/adb/ksu/bin/ksud
+    fi
+fi
+
+if [ -n "$KSUD" ] && [ -f "$KSUD" ] && [ ! -x "$KSUD" ]; then
+    chmod 755 "$KSUD" 2>/dev/null
+fi
+if [ -z "$KSUD" ] || [ ! -x "$KSUD" ]; then
+    exit 1
+fi
+
+KVER=$(uname -r | cut -d. -f1-2)
+AVER=$(uname -r | grep -o 'android[0-9]*')
+if [ -z "$KVER" ] || [ -z "$AVER" ]; then
+    exit 2
+fi
+
+exec "$KSUD" late-load --kmi "${AVER}-${KVER}"
