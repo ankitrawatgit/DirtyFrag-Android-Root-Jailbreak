@@ -26,6 +26,15 @@ the exploit also matter.
 
 Download the latest APK from the repository's [Releases](https://github.com/ankitrawatgit/DirtyFrag-Android-Root-Jailbreak/releases) page.
 
+### Root manager downloads
+
+Install a compatible manager before launching the app. The automatic loader
+checks the installed manager's `ksud` in this order: KernelSU, ReSukiSU, then
+the system `ksud` path.
+
+- [KernelSU Manager releases](https://github.com/tiann/KernelSU/releases)
+- [ReSukiSU Manager releases](https://github.com/ReSukiSU/ReSukiSU/releases)
+
 1. Install the APK and open **DirtyFrag Android Root**.
 2. Review the device profile and detected KMI in Settings.
 3. Leave automatic `ksud` selection on for KernelSU or ReSukiSU, or choose a
