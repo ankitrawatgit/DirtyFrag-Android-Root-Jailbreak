@@ -93,6 +93,24 @@ Use the run log to locate the failing stage:
   crash/tombstone entry for `crash_dump64`. This usually means the helper was
   not the code that executed, or the firmware's crash handler aborted before
   vendor access.
+- `libc++: mutex acquired, loading custom module` followed by
+  `***FAILED***: check logs`: patch #1, the vendor carrier, and the trigger
+  worked, but the kernel rejected `dirtyfrag.ko` or the module did not create
+  its result marker. Check the kernel log with `dmesg` or `logcat` for
+  `invalid module format`, `module_layout`, `vermagic`, `Unknown symbol`, or
+  `CFI/UBSAN` errors. In that case the problem is the `.ko`, not the vendor
+  library and not `ksud` yet.
+- `Unknown symbol register_kprobe`, `Unknown symbol unregister_kprobe`, or
+  `no symbol version for module_layout`: the bundled helper was built for a
+  different kernel configuration or symbol table. Build
+  `dirtyfrag-lkm/dirtyfrag.ko` against the device's exact kernel source,
+  headers, configuration, compiler settings, and architecture. Matching only
+  Android/KMI and `5.15` or `6.1` is not sufficient; if the kernel does not
+  expose kprobes, the helper needs a different implementation.
+- `***FAILED***: ksud exited with error` after a module-load marker: the
+  module did initialize, but the staged loader could not find or run a
+  compatible arm64 `ksud`. Select the matching KernelSU/ReSukiSU loader or a
+  compatible custom file.
 - Patch #2 succeeds but `ksud` fails: use a compatible arm64 `ksud` from the
   installed KernelSU/ReSukiSU manager, or select a custom loader in Settings.
 
