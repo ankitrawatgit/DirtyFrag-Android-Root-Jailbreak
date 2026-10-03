@@ -35,6 +35,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
     private static final int REQUEST_SELECT_KO = 4109;
     private static final long MAX_PAYLOAD_BYTES = 64L * 1024L * 1024L;
     private static final Pattern KMI_PATTERN = Pattern.compile("^(\\d+)\\.(\\d+).*?(android\\d+)");
+    private static final Pattern KERNEL_VERSION_PATTERN = Pattern.compile("^(\\d+)\\.(\\d+)");
     private static final Pattern KMI_VERSION_PATTERN = Pattern.compile("^android\\d+-(\\d+\\.\\d+)$");
     private static final String PREF_SELECTED_KO = ExploitRunner.PREF_SELECTED_BUNDLED_KO_KMI;
     private static final String AUTO_KO = ExploitRunner.AUTO_BUNDLED_KO;
@@ -202,7 +203,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         String label = displayName(source);
         if (!isDfRootKo(tempKo)) {
             tempKo.delete();
-            throw new IOException("choose an arm64 DFRoot dirtyfrag.ko for KMI " + currentKmi()
+            throw new IOException("choose an arm64 DFRoot dirtyfrag.ko for kernel " + currentKmiLabel()
                     + " with matching kernel vermagic");
         }
         replaceFile(tempKo, customKo);
@@ -211,7 +212,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
                 .edit().putString("custom_ko_label", label)
                 .putString(PREF_SELECTED_KO, "custom").apply();
         updateKoMode();
-        report("manual DFRoot module selected: " + label + " (KMI " + currentKmi() + ")\n");
+        report("manual DFRoot module selected: " + label + " (kernel " + currentKmiLabel() + ")\n");
     }
 
     private static boolean isArm64Executable(File file) throws IOException {
@@ -230,12 +231,10 @@ public class MainActivity extends AppCompatActivity implements IReporter {
                 && header[4] == 2 && header[5] == 1
                 && header[16] == 1 && header[17] == 0
                 && (header[18] & 0xff) == 0xb7 && header[19] == 0;
-        String kmi = currentKmi();
-        Matcher kernelMatcher = KMI_PATTERN.matcher(System.getProperty("os.version", ""));
-        String kernelVermagicPrefix = kernelMatcher.find()
-                ? "vermagic=" + kernelMatcher.group(1) + "." + kernelMatcher.group(2) + "."
-                : null;
-        return arm64Relocatable && kmi != null
+        String kernelVersion = currentKernelVersion();
+        String kernelVermagicPrefix = kernelVersion == null
+                ? null : "vermagic=" + kernelVersion + ".";
+        return arm64Relocatable
                 && containsAscii(file, "name=dirtyfrag")
                 && containsAscii(file, "description=DFRoot LKM")
                 && kernelVermagicPrefix != null
@@ -335,7 +334,7 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         updateKoMode();
         String actualKmi = AUTO_KO.equals(selectedKmi) ? resolvedAutoKmi() : selectedKmi;
         report(actualKmi == null
-                ? "bundled module selection: no match for current kernel KMI " + currentKmi() + "\n"
+                ? "bundled module selection: no match for current kernel KMI " + currentKmiLabel() + "\n"
                 : "bundled module selection: dirtyfrag-" + actualKmi + ".ko\n");
     }
 
@@ -393,10 +392,10 @@ public class MainActivity extends AppCompatActivity implements IReporter {
             boolean automatic = AUTO_KO.equals(selection);
             String actualKmi = automatic ? resolvedAutoKmi() : selection;
             if (actualKmi == null) {
-                binding.koMode.setText("No bundled helper for KMI " + currentKmi());
-                binding.koGuidance.setText("Build a DFRoot dirtyfrag.ko for this device's kernel/KMI, then tap “Choose custom DFRoot .ko” and select that file.");
+                binding.koMode.setText("No automatic bundle for KMI " + currentKmiLabel());
+                binding.koGuidance.setText("This kernel does not expose an Android KMI in uname. Choose a matching arm64 DFRoot .ko manually, or build one for this kernel.");
             } else if (automatic && !actualKmi.equals(currentKmi())) {
-                binding.koMode.setText("Selected: dirtyfrag-" + actualKmi + ".ko · fallback for " + currentKmi());
+                binding.koMode.setText("Selected: dirtyfrag-" + actualKmi + ".ko · fallback for " + currentKmiLabel());
                 binding.koGuidance.setText("There is no exact bundled KMI match. Automatic mode uses this same-major/minor fallback; compatibility is unverified. Build an exact-KMI DFRoot helper and select it if needed.");
             } else {
                 binding.koMode.setText("Selected: dirtyfrag-" + actualKmi + ".ko"
@@ -410,12 +409,13 @@ public class MainActivity extends AppCompatActivity implements IReporter {
 
     private void updateKoSelector() {
         File customKo = ExploitRunner.customKoFile(this);
-        if (resolvedAutoKmi() == null) {
+        String autoKmi = resolvedAutoKmi();
+        if (autoKmi == null && currentKernelVersion() == null) {
             String[] options = customKo.isFile()
-                    ? new String[]{"No bundled .ko for " + currentKmi(), "Custom file · "
+                    ? new String[]{"No bundled .ko for " + currentKmiLabel(), "Custom file · "
                             + getSharedPreferences("dfroot", MODE_PRIVATE)
                                     .getString("custom_ko_label", "custom module")}
-                    : new String[]{"No bundled .ko for " + currentKmi()};
+                    : new String[]{"No bundled .ko for " + currentKmiLabel()};
             ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
                     android.R.layout.simple_dropdown_item_1line, options);
             binding.koSelection.setAdapter(adapter);
@@ -428,10 +428,11 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         binding.koSelectionLayout.setEnabled(true);
         binding.koSelection.setEnabled(true);
         String[] options = new String[BUNDLED_KMIS.length + 1 + (customKo.isFile() ? 1 : 0)];
-        String autoKmi = resolvedAutoKmi();
-        options[0] = "Automatic · dirtyfrag-" + autoKmi + ".ko"
-                + (autoKmi.equals(currentKmi()) ? "" : " · fallback for " + currentKmi());
-        String runningVersion = kernelVersion(currentKmi());
+        options[0] = autoKmi == null
+                ? "Automatic · no Android KMI match"
+                : "Automatic · dirtyfrag-" + autoKmi + ".ko"
+                    + (autoKmi.equals(currentKmi()) ? "" : " · fallback for " + currentKmiLabel());
+        String runningVersion = currentKernelVersion();
         for (int i = 0; i < BUNDLED_KMIS.length; i++) {
             String kmi = BUNDLED_KMIS[i];
             String suffix = runningVersion != null && runningVersion.equals(kernelVersion(kmi))
@@ -497,11 +498,15 @@ public class MainActivity extends AppCompatActivity implements IReporter {
 
     private static boolean sameKernelVersion(String firstKmi, String secondKmi) {
         String firstVersion = kernelVersion(firstKmi);
-        return firstVersion != null && firstVersion.equals(kernelVersion(secondKmi));
+        String secondVersion = secondKmi == null ? currentKernelVersion() : kernelVersion(secondKmi);
+        return firstVersion != null && firstVersion.equals(secondVersion);
     }
 
     private void updateRunAvailability() {
-        boolean hasModule = ExploitRunner.customKoFile(this).isFile() || resolvedAutoKmi() != null;
+        String selected = normalizedKoSelection();
+        boolean manualBundle = !AUTO_KO.equals(selected) && sameKernelVersion(selected, null);
+        boolean hasModule = ExploitRunner.customKoFile(this).isFile()
+                || resolvedAutoKmi() != null || manualBundle;
         binding.btnRun.setEnabled(hasModule && !new File("/dev/df").exists());
     }
 
@@ -510,13 +515,16 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         String kmi = currentKmi();
         String soc = Build.SOC_MODEL;
         if (soc == null || soc.isEmpty() || "unknown".equalsIgnoreCase(soc)) soc = "Unknown";
+        String kmiLabel = kmi == null
+                ? "unrecognized (kernel " + currentKernelVersion() + ")"
+                : kmi;
         binding.deviceDetails.setText("Brand: " + Build.MANUFACTURER + "\n"
                 + "Model / device: " + Build.MODEL + " / " + Build.DEVICE + "\n"
                 + "SoC: " + soc + "\n"
                 + "Android: " + Build.VERSION.RELEASE + " (API " + Build.VERSION.SDK_INT + ")\n"
                 + "Security patch: " + Build.VERSION.SECURITY_PATCH + "\n"
                 + "Kernel: " + kernel + "\n"
-                + "KMI: " + (kmi == null ? "unrecognized" : kmi));
+                + "KMI: " + kmiLabel);
     }
 
     private static String currentKmi() {
@@ -524,6 +532,18 @@ public class MainActivity extends AppCompatActivity implements IReporter {
         Matcher matcher = KMI_PATTERN.matcher(release);
         if (!matcher.find()) return null;
         return matcher.group(3) + "-" + matcher.group(1) + "." + matcher.group(2);
+    }
+
+    private static String currentKernelVersion() {
+        Matcher matcher = KERNEL_VERSION_PATTERN.matcher(System.getProperty("os.version", ""));
+        return matcher.find() ? matcher.group(1) + "." + matcher.group(2) : null;
+    }
+
+    private static String currentKmiLabel() {
+        String kmi = currentKmi();
+        if (kmi != null) return kmi;
+        String version = currentKernelVersion();
+        return version == null ? "unknown" : "unknown-" + version;
     }
 
     private void openGithub() {

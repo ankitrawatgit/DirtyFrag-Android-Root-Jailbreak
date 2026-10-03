@@ -459,6 +459,10 @@ static const struct KoImage *select_ko_image(int andr, int major, int minor,
         return NULL;
     }
 
+    /* Without an androidN suffix there is no safe automatic KMI choice.
+     * A bundled image may still be selected explicitly by its full KMI. */
+    if (andr <= 0) return NULL;
+
     const struct KoImage *fb = NULL;
     for (size_t i = 0; i < sizeof(imgs)/sizeof(imgs[0]); i++) {
         if (imgs[i].kver_major != major || imgs[i].kver_minor != minor) continue;
@@ -473,9 +477,8 @@ static int read_device_versions(int *andr, int *major, int *minor) {
     if (uname(&u) != 0) return -1;
     if (sscanf(u.release, "%d.%d", major, minor) != 2) return -1;
     const char *m = strstr(u.release, "android");
-    if (!m) return -1;
-    *andr = atoi(m + 7);
-    return (*andr > 0) ? 0 : -1;
+    *andr = m ? atoi(m + 7) : 0;
+    return 0;
 }
 
 /* Pad payload to a multiple of 16 bytes in a heap buffer.
@@ -544,7 +547,10 @@ static char *read_custom_ko(const char *path,
             && elf[18] == 0xb7 && elf[19] == 0;
     char kmi[48];
     char vermagic_prefix[48];
-    snprintf(kmi, sizeof(kmi), "android%d-%d.%d", andr, major, minor);
+    if (andr > 0)
+        snprintf(kmi, sizeof(kmi), "android%d-%d.%d", andr, major, minor);
+    else
+        snprintf(kmi, sizeof(kmi), "unknown-%d.%d", major, minor);
     snprintf(vermagic_prefix, sizeof(vermagic_prefix), "vermagic=%d.%d.", major, minor);
     if (!valid_elf || !bytes_contain(data, len, "name=dirtyfrag")
             || !bytes_contain(data, len, "description=DFRoot LKM")
@@ -575,16 +581,25 @@ static int patch_ko(struct Reporter *reporter, const char *custom_ko_path,
                                         andr, major, minor, &ko_len, reporter);
         if (!custom_ko_data) return 1;
         ko_data = custom_ko_data;
-        REPORTLN("* ko manual DFRoot helper, KMI android%d-%d.%d (%zu bytes)",
-                 andr, major, minor, ko_len);
+        if (andr > 0)
+            REPORTLN("* ko manual DFRoot helper, KMI android%d-%d.%d (%zu bytes)",
+                     andr, major, minor, ko_len);
+        else
+            REPORTLN("* ko manual DFRoot helper, kernel %d.%d (Android KMI unknown, %zu bytes)",
+                     major, minor, ko_len);
     } else {
         const struct KoImage *ko = select_ko_image(andr, major, minor, requested_kmi);
         if (!ko) {
             if (requested_kmi && requested_kmi[0]) {
-                REPORTLN("selected module %s does not match running KMI android%d-%d.%d; refusing to patch",
-                         requested_kmi, andr, major, minor);
+                if (andr > 0)
+                    REPORTLN("selected module %s does not match running KMI android%d-%d.%d; refusing to patch",
+                             requested_kmi, andr, major, minor);
+                else
+                    REPORTLN("selected module %s cannot be matched: Android KMI is missing from uname (kernel %d.%d)",
+                             requested_kmi, major, minor);
             } else {
-                REPORTLN("unsupported kernel %d.%d android %d", major, minor, andr);
+                REPORTLN("no automatic bundle for kernel %d.%d: Android KMI is missing from uname",
+                         major, minor);
             }
             return 1;
         }
