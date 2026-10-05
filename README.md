@@ -1,8 +1,9 @@
 # DirtyFrag-Android-Root/Jailbreak
 
-> **Archived:** Use the [DFRoot](https://github.com/diabl0w/DFRoot)
-https://github.com/diabl0w/DFRoot
-> instead. It is the active upstream project with newer fixes and improvements.
+## ⚠️ **ARCHIVED — USE THE DFROOT**
+
+**Use the [DFRoot](https://github.com/diabl0w/DFRoot) instead. It is the
+active upstream project with newer fixes and improvements.**
 
 DirtyFrag Android Root is an Android app and helper
 module chain based on DirtyFrag (CVE-2026-43284).
