@@ -1,5 +1,9 @@
 # DirtyFrag-Android-Root/Jailbreak
 
+> **Archived:** Use the [DFRoot](https://github.com/diabl0w/DFRoot)
+https://github.com/diabl0w/DFRoot
+> instead. It is the active upstream project with newer fixes and improvements.
+
 DirtyFrag Android Root is an Android app and helper
 module chain based on DirtyFrag (CVE-2026-43284).
 Tested on iQOO Z9 5G.
@@ -8,7 +12,6 @@ It is an independent DFRoot fork and device-port. The core DirtyFrag exploit cha
 
 [![Views](https://hits.sh/github.com/ankitrawatgit/DirtyFrag-Android-Root-Jailbreak.svg?label=views&color=3A56D4)](https://github.com/ankitrawatgit/DirtyFrag-Android-Root-Jailbreak)
 
-[![Buy Me a Coffee](https://www.buymeacoffee.com/assets/img/custom_images/yellow_img.png)](https://coff.ee/ankitrawatbmac)
 
 Built with the help of [Codex](https://openai.com/codex/).
 
